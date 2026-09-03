@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bilimsel Makale Arşivim</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header class="ust-kisim">
+        <h1>Bilimsel Makale Arşivim</h1>
+        <p>Bilim, teknoloji ve siber güvenlik haberleri</p>
+        
+        <div style="margin-top: 15px;">
+            {% if is_admin %}
+                <span style="color: #86efac; font-weight: bold;">Yönetici Modu Aktif</span> | 
+                <a href="{{ url_for('logout') }}" style="color: white; text-decoration: underline;">Çıkış Yap</a>
+            {% else %}
+                <form action="{{ url_for('login') }}" method="POST" style="display: inline-block;">
+                    <input type="password" name="sifre" placeholder="Yönetici Şifresi" style="width: auto; padding: 5px; font-size: 14px;">
+                    <button type="submit" style="width: auto; padding: 5px 10px; font-size: 14px; background-color: #0f172a;">Giriş</button>
+                </form>
+            {% endif %}
+        </div>
+    </header>
+
+    <main class="ana-kapsayici">
+        {% if is_admin %}
+        <section class="form-alani">
+            <h2>Yeni Makale Ekle</h2>
+            <form action="{{ url_for('makale_ekle') }}" method="POST">
+                <input type="text" name="baslik" placeholder="Makale başlığı" required>
+                <input type="url" name="link" placeholder="https://ornek.com/makale" required>
+                <textarea name="aciklama" placeholder="Kısa açıklama" rows="3"></textarea>
+                <button type="submit">Makale Ekle</button>
+            </form>
+        </section>
+        {% endif %}
+
+        <section class="arama-alani">
+            <h2>Yayınlanan Makaleler</h2>
+            <input type="search" id="aramaKutusu" placeholder="Makale ara...">
+        </section>
+
+        <section id="makaleListesi" class="makale-listesi">
+            {% if veri %}
+                {% for item in veri %}
+                    <article class="makale-karti">
+                        <h3>{{ item.makale["baslik"] }}</h3>
+                        {% if item.makale["aciklama"] %}
+                            <p>{{ item.makale["aciklama"] }}</p>
+                        {% endif %}
+                        <a href="{{ item.makale['link'] }}" target="_blank" rel="noopener noreferrer">Makaleyi aç</a>
+
+                        {% if is_admin %}
+                        <form action="{{ url_for('makale_sil', makale_id=item.makale['id']) }}" method="POST" style="margin-top: 10px;">
+                            <button type="submit" class="sil-butonu">Makaleyi Sil</button>
+                        </form>
+                        {% endif %}
+
+                        <!-- YORUM ALANI -->
+                        <div class="yorumlar-bolumu" style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
+                            <h4>Yorumlar / Notlar</h4>
+                            
+                            <!-- Var olan yorumları listele -->
+                            {% if item.yorumlar %}
+                                <div class="yorum-listesi" style="margin-top: 10px;">
+                                    {% for y in item.yorumlar %}
+                                        <div style="background-color: #f8fafc; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; font-size: 14px;">
+                                            <strong>{{ y["isim"] }}:</strong> {{ y["yorum"] }}
+                                            {% if is_admin %}
+                                                <form action="{{ url_for('yorum_sil', yorum_id=y['id']) }}" method="POST" style="display: inline; float: right;">
+                                                    <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 12px; width: auto; padding: 0;">[Sil]</button>
+                                                </form>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p style="font-size: 13px; color: #94a3b8; margin: 5px 0;">Henüz yorum yapılmadı.</p>
+                            {% endif %}
+
+                            <!-- Yorum Ekleme Formu -->
+                            <form action="{{ url_for('yorum_ekle', makale_id=item.makale['id']) }}" method="POST" style="margin-top: 10px;">
+                                <input type="text" name="isim" placeholder="Adınız" required style="margin-bottom: 6px; padding: 8px; font-size: 14px;">
+                                <input type="text" name="yorum" placeholder="Yorumunuz veya notunuz..." required style="margin-bottom: 6px; padding: 8px; font-size: 14px;">
+                                <button type="submit" style="padding: 6px 12px; font-size: 14px; background-color: #475569;">Yorum Yap</button>
+                            </form>
+                        </div>
+                    </article>
+                {% endfor %}
+            {% else %}
+                <p>Henüz makale eklenmedi.</p>
+            {% endif %}
+        </section>
+    </main>
+
+    <footer class="alt-kisim">
+        <p>Bilimsel okuma arşivim</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
