@@ -8,6 +8,11 @@ import sqlite3
 # .env dosyasındaki ortam değişkenlerini yükle
 load_dotenv()
 
+# Cloudinary yapılandırmasını ortam değişkeninden doğrudan oku
+cloudinary.config(
+    cloudinary_url=os.environ.get('CLOUDINARY_URL')
+)
+
 app = Flask(__name__)
 app.secret_key = "super_gizli_yonetici_anahtari"
 YONETICI_SIFRESI = "123456"
