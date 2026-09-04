@@ -10,7 +10,7 @@ from flask_mail import Mail, Message
 # .env dosyasındaki ortam değişkenlerini yükle
 load_dotenv()
 
-# Cloudinary yapılandırmasını ortam değişkeninden doğrudan oku
+# Cloudinary yapılandırması
 cloudinary.config(
     cloudinary_url=os.environ.get('CLOUDINARY_URL')
 )
@@ -20,7 +20,7 @@ app.secret_key = "super_gizli_yonetici_anahtari"
 YONETICI_SIFRESI = "123456"
 VERITABANI = "bilim_v2.db"
 
-# Flask-Mail Konfigürasyonu (SSL / Port 465)
+# Flask-Mail Konfigürasyonu (Port 465 SSL)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 465
 app.config['MAIL_USE_TLS'] = False
@@ -31,9 +31,9 @@ app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME')
 
 mail = Mail(app)
 
-# Mail Gönderme Yardımcı Fonksiyonu (Arka Plan)
-def eposta_gonder_arkaplan(app_context, msg):
-    with app_context:
+# Arka planda mail gönderme fonksiyonu
+def eposta_gonder_arkaplan(app_obj, msg):
+    with app_obj.app_context():
         try:
             mail.send(msg)
             print("Mail basariyla gonderildi!")
@@ -44,7 +44,6 @@ def veritabani_hazirla():
     baglanti = sqlite3.connect(VERITABANI)
     cursor = baglanti.cursor()
 
-    # Aboneler tablosu
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS aboneler (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +52,6 @@ def veritabani_hazirla():
         )
     """)
 
-    # Makaleler tablosu
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS makaleler (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,7 +63,6 @@ def veritabani_hazirla():
         )
     """)
 
-    # Yorumlar tablosu
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS yorumlar (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -168,7 +165,7 @@ def makale_ekle():
     baglanti.commit()
     baglanti.close()
 
-    # Otomatik Mail Gönderim Bloğu (Threading)
+    # Otomatik Mail Gönderimi (Arka Plan Threading)
     try:
         baglanti_mail = sqlite3.connect(VERITABANI)
         cursor = baglanti_mail.cursor()
@@ -186,7 +183,7 @@ def makale_ekle():
             )
             threading.Thread(
                 target=eposta_gonder_arkaplan,
-                args=(app.app_context(), msg)
+                args=(app, msg)
             ).start()
     except Exception as e:
         print(f"Mail hazırlama hatası: {e}")
