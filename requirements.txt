@@ -3,3 +3,4 @@ gunicorn
 cloudinary
 python-dotenv
 Flask-Mail
+resend

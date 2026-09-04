@@ -4,39 +4,52 @@ import threading
 from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
+import resend
 from flask import Flask, render_template, request, redirect, url_for, session, flash
-from flask_mail import Mail, Message
 
 load_dotenv()
 
+# Cloudinary Yapılandırması
 cloudinary.config(
     cloudinary_url=os.environ.get('CLOUDINARY_URL')
 )
+
+# Resend API Yapılandırması (Port Engellerini Aşar)
+resend.api_key = os.environ.get('RESEND_API_KEY')
 
 app = Flask(__name__)
 app.secret_key = "super_gizli_yonetici_anahtari"
 YONETICI_SIFRESI = "123456"
 VERITABANI = "bilim_v2.db"
 
-# Flask-Mail Konfigürasyonu (Render için Port 587 + TLS)
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME')
+# Arka planda Resend HTTP API ile e-posta gönderimi
+def eposta_gonder_arkaplan(baslik, alici_listesi):
+    try:
+        print("--- MAIL GONDERIMI BASLADILDI (RESEND API) ---")
+        
+        # Gönderici adresi olarak Resend varsayılan veya onaylı adresiniz
+        sender_email = "onboarding@resend.dev"
+        admin_email = os.environ.get('MAIL_USERNAME', 'eavci1987@gmail.com')
 
-mail = Mail(app)
+        params = {
+            "from": f"Bilim Sayfam <{sender_email}>",
+            "to": [admin_email],
+            "subject": f"Yeni Yayın: {baslik}",
+            "html": f"""
+                <h3>Merhaba!</h3>
+                <p>Sitemizde yeni bir bilimsel içerik paylaşıldı:</p>
+                <p><strong>Başlık:</strong> {baslik}</p>
+                <p><a href="https://bilim-sayfam-1.onrender.com">Sitemize gitmek için tıklayın</a></p>
+            """
+        }
 
-def eposta_gonder_arkaplan(app_obj, msg):
-    with app_obj.app_context():
-        try:
-            print("--- MAIL GONDERIMI BASLADILDI ---")
-            mail.send(msg)
-            print("--- MAIL BASARIYLA GONDERILDI ---")
-        except Exception as e:
-            print(f"--- MAIL GONDERME HATASI: {e} ---")
+        if alici_listesi:
+            params["bcc"] = alici_listesi
+
+        r = resend.Emails.send(params)
+        print(f"--- MAIL BASARIYLA GONDERILDI: {r} ---")
+    except Exception as e:
+        print(f"--- MAIL GONDERME HATASI: {e} ---")
 
 def veritabani_hazirla():
     baglanti = sqlite3.connect(VERITABANI)
@@ -163,7 +176,7 @@ def makale_ekle():
     baglanti.commit()
     baglanti.close()
 
-    # Otomatik Mail Gönderimi (Arka Plan Threading)
+    # Otomatik Mail Gönderimi (HTTP API + Threading)
     try:
         baglanti_mail = sqlite3.connect(VERITABANI)
         cursor = baglanti_mail.cursor()
@@ -172,21 +185,11 @@ def makale_ekle():
         baglanti_mail.close()
 
         alici_listesi = [abone[0] for abone in aboneler] if aboneler else []
-        admin_mail = os.environ.get('MAIL_USERNAME')
-        
         print(f"--- BULUNAN ABONE SAYISI: {len(alici_listesi)} ---")
 
-        msg = Message(
-            subject=f"Yeni Yayın: {baslik}",
-            recipients=[admin_mail],
-            bcc=alici_listesi if alici_listesi else None,
-            body=f"Merhaba!\n\nSitemizde yeni bir bilimsel içerik paylaşıldı:\n\nBaşlık: {baslik}\n\nİçeriği incelemek için tıklayın:\nhttps://bilim-sayfam-1.onrender.com"
-        )
-        
-        app_obj = app._get_current_object() if hasattr(app, '_get_current_object') else app
         threading.Thread(
             target=eposta_gonder_arkaplan,
-            args=(app_obj, msg)
+            args=(baslik, alici_listesi)
         ).start()
 
     except Exception as e:
