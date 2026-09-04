@@ -7,10 +7,8 @@ import cloudinary.uploader
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_mail import Mail, Message
 
-# .env dosyasındaki ortam değişkenlerini yükle
 load_dotenv()
 
-# Cloudinary yapılandırması
 cloudinary.config(
     cloudinary_url=os.environ.get('CLOUDINARY_URL')
 )
@@ -20,7 +18,6 @@ app.secret_key = "super_gizli_yonetici_anahtari"
 YONETICI_SIFRESI = "123456"
 VERITABANI = "bilim_v2.db"
 
-# Flask-Mail Konfigürasyonu (SSL / Port 465)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 465
 app.config['MAIL_USE_TLS'] = False
@@ -31,10 +28,10 @@ app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME')
 
 mail = Mail(app)
 
-# Arka planda mail gönderme fonksiyonu (Eksiksiz App Context Bağlamı)
 def eposta_gonder_arkaplan(app_obj, msg):
     with app_obj.app_context():
         try:
+            print("--- MAIL GONDERIMI BASLADILDI ---")
             mail.send(msg)
             print("--- MAIL BASARIYLA GONDERILDI ---")
         except Exception as e:
@@ -173,23 +170,26 @@ def makale_ekle():
         aboneler = cursor.fetchall()
         baglanti_mail.close()
 
-        if aboneler:
-            alici_listesi = [abone[0] for abone in aboneler]
-            msg = Message(
-                subject=f"Yeni Yayın: {baslik}",
-                recipients=[os.environ.get('MAIL_USERNAME')],
-                bcc=alici_listesi,
-                body=f"Merhaba!\n\nSitemizde yeni bir bilimsel içerik veya medya paylaşıldı:\n\nBaşlık: {baslik}\n\nİçeriği incelemek için sitemizi ziyaret edin:\nhttps://bilim-sayfam-1.onrender.com"
-            )
-            
-            # Uygulama nesnesini güvenli şekilde Thread'e gönderiyoruz
-            app_obj = app._get_current_object() if hasattr(app, '_get_current_object') else app
-            threading.Thread(
-                target=eposta_gonder_arkaplan,
-                args=(app_obj, msg)
-            ).start()
+        alici_listesi = [abone[0] for abone in aboneler] if aboneler else []
+        admin_mail = os.environ.get('MAIL_USERNAME')
+        
+        print(f"--- BULUNAN ABONE SAYISI: {len(alici_listesi)} ---")
+
+        msg = Message(
+            subject=f"Yeni Yayın: {baslik}",
+            recipients=[admin_mail], # Doğrudan sana gönderir
+            bcc=alici_listesi if alici_listesi else None, # Aboneler varsa gizli alıcı ekler
+            body=f"Merhaba!\n\nSitemizde yeni bir bilimsel içerik paylaşıldı:\n\nBaşlık: {baslik}\n\nİçeriği incelemek için tıklayın:\nhttps://bilim-sayfam-1.onrender.com"
+        )
+        
+        app_obj = app._get_current_object() if hasattr(app, '_get_current_object') else app
+        threading.Thread(
+            target=eposta_gonder_arkaplan,
+            args=(app_obj, msg)
+        ).start()
+
     except Exception as e:
-        print(f"Mail hazırlama hatası: {e}")
+        print(f"--- MAIL HAZIRLAMA HATASI: {e} ---")
 
     flash('Makale ve medya başarıyla eklendi!', 'success')
     return redirect(url_for('index'))
