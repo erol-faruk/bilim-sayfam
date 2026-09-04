@@ -16,7 +16,7 @@ cloudinary.config(
 app = Flask(__name__)
 app.secret_key = "super_gizli_yonetici_anahtari"
 YONETICI_SIFRESI = "123456"
-VERITABANI = "bilim.db"
+VERITABANI = "bilim_v2.db"
 
 def veritabani_hazirla():
     baglanti = sqlite3.connect(VERITABANI)
