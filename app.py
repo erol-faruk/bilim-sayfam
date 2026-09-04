@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import threading
 from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
@@ -21,7 +22,7 @@ VERITABANI = "bilim_v2.db"
 
 # Flask-Mail Konfigürasyonu (EKSİK OLAN KISIM EKLENDİ)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
+app.config['MAIL_PORT'] = 465
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
@@ -128,6 +129,65 @@ def login():
 def logout():
     session.pop('admin', None)
     flash('Çıkış yapıldı.', 'info')
+    return redirect(url_for('index'))
+# Mail gönderme işini arka planda yapacak yardımcı fonksiyon
+def eposta_gonder_arkaplan(app, msg):
+    with app.app_context():
+        try:
+            mail.send(msg)
+            print("Mail basariyla gonderildi!")
+        except Exception as e:
+            print(f"Mail gonderme hatasi: {e}")
+
+@app.route('/makale-ekle', methods=['POST'])
+def makale_ekle():
+    if not session.get('admin'):
+        return redirect(url_for('index'))
+
+    baslik = request.form.get('baslik')
+    icerik = request.form.get('icerik')
+    dosya = request.files.get('dosya')
+
+    dosya_url = None
+    dosya_turu = None
+
+    if dosya and dosya.filename != '':
+        try:
+            yukleme_sonucu = cloudinary.uploader.upload(dosya, resource_type="auto")
+            dosya_url = yukleme_sonucu.get('secure_url')
+            dosya_turu = yukleme_sonucu.get('resource_type')
+        except Exception as e:
+            flash(f'Dosya yükleme hatası: {str(e)}', 'danger')
+            return redirect(url_for('index'))
+
+    baglanti = sqlite3.connect(VERITABANI)
+    baglanti.execute("INSERT INTO makaleler (baslik, icerik, dosya_url, dosya_turu) VALUES (?, ?, ?, ?)",
+                     (baslik, icerik, dosya_url, dosya_turu))
+    baglanti.commit()
+    baglanti.close()
+
+    # Otomatik Mail Gönderim Bloğu (Arka Plan / Threading Yapısı)
+    try:
+        baglanti_mail = sqlite3.connect(VERITABANI)
+        cursor = baglanti_mail.cursor()
+        cursor.execute("SELECT eposta FROM aboneler")
+        aboneler = cursor.fetchall()
+        baglanti_mail.close()
+
+        if aboneler:
+            alici_listesi = [abone[0] for abone in aboneler]
+            msg = Message(
+                subject=f"Yeni Yayın: {baslik}",
+                recipients=[os.environ.get('MAIL_USERNAME')],
+                bcc=alici_listesi,
+                body=f"Merhaba!\n\nSitemizde yeni bir bilimsel içerik veya medya paylaşıldı:\n\nBaşlık: {baslik}\n\nİçeriği incelemek için sitemizi ziyaret edin:\nhttps://bilim-sayfam-1.onrender.com"
+            )
+            # Mail işlemini arka planda başlatıyoruz (Siti dondurmez / Timeout almaz)
+            threading.Thread(target=eposta_gonder_arkaplan, args=(app._get_current_object(), msg)).start()
+    except Exception as e:
+        print(f"Mail hazirlama hatasi: {e}")
+
+    flash('Makale ve medya başarıyla eklendi!', 'success')
     return redirect(url_for('index'))
 
 @app.route('/makale-ekle', methods=['POST'])
