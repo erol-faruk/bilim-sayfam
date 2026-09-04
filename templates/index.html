@@ -3,102 +3,155 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bilimsel Makale Arşivim</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>Bilimsel Makale ve Medya Arşivi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .article-card { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 24px; overflow: hidden; }
+        .media-container { background: #000; text-align: center; max-height: 450px; overflow: hidden; }
+        .media-container img { max-height: 450px; width: auto; object-fit: contain; }
+        .media-container video { width: 100%; max-height: 450px; }
+    </style>
 </head>
 <body>
-    <header class="ust-kisim">
-        <h1>Bilimsel Makale Arşivim</h1>
-        <p>Bilim, teknoloji ve siber güvenlik haberleri</p>
-        
-        <div style="margin-top: 15px;">
-            {% if is_admin %}
-                <span style="color: #86efac; font-weight: bold;">Yönetici Modu Aktif</span> | 
-                <a href="{{ url_for('logout') }}" style="color: white; text-decoration: underline;">Çıkış Yap</a>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="#">🧪 Bilimsel Makale Arşivim</a>
+        <div>
+            {% if session.get('admin') %}
+                <span class="text-white me-2">Yönetici Modu Aktif</span>
+                <a href="/logout" class="btn btn-outline-light btn-sm">Çıkış Yap</a>
             {% else %}
-                <form action="{{ url_for('login') }}" method="POST" style="display: inline-block;">
-                    <input type="password" name="sifre" placeholder="Yönetici Şifresi" style="width: auto; padding: 5px; font-size: 14px;">
-                    <button type="submit" style="width: auto; padding: 5px 10px; font-size: 14px; background-color: #0f172a;">Giriş</button>
-                </form>
+                <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#loginModal">Yönetici Girişi</button>
             {% endif %}
         </div>
-    </header>
+    </div>
+</nav>
 
-    <main class="ana-kapsayici">
-        {% if is_admin %}
-        <section class="form-alani">
-            <h2>Yeni Makale Ekle</h2>
-            <form action="{{ url_for('makale_ekle') }}" method="POST">
-                <input type="text" name="baslik" placeholder="Makale başlığı" required>
-                <input type="url" name="link" placeholder="https://ornek.com/makale" required>
-                <textarea name="aciklama" placeholder="Kısa açıklama" rows="3"></textarea>
-                <button type="submit">Makale Ekle</button>
-            </form>
-        </section>
+<div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
         {% endif %}
+    {% endwith %}
 
-        <section class="arama-alani">
-            <h2>Yayınlanan Makaleler</h2>
-            <input type="search" id="aramaKutusu" placeholder="Makale ara...">
-        </section>
+    {% if session.get('admin') %}
+    <div class="card p-4 mb-4 shadow-sm border-0 rounded-3">
+        <h4 class="card-title mb-3 text-primary fw-bold">Yeni Makale & Medya Paylaş</h4>
+        <form action="/makale-ekle" method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <input type="text" name="baslik" class="form-control" placeholder="Makale başlığı" required>
+            </div>
+            <div class="mb-3">
+                <textarea name="icerik" class="form-control" rows="4" placeholder="Kısa açıklama veya makale metni..." required></textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label text-muted small fw-bold">Dosya Ekle (Fotoğraf, CapCut/Canva Video, PDF vb.):</label>
+                <input type="file" name="dosya" class="form-control">
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Makale Ekle</button>
+        </form>
+    </div>
+    {% endif %}
 
-        <section id="makaleListesi" class="makale-listesi">
-            {% if veri %}
-                {% for item in veri %}
-                    <article class="makale-karti">
-                        <h3>{{ item.makale["baslik"] }}</h3>
-                        {% if item.makale["aciklama"] %}
-                            <p>{{ item.makale["aciklama"] }}</p>
+    <div class="row">
+        <div class="col-md-10 mx-auto">
+            <h4 class="fw-bold mb-3">Yayınlanan Makaleler</h4>
+            {% for item in makaleler %}
+            <div class="card article-card">
+                
+                {% if item.makale.dosya_url %}
+                    <div class="media-container">
+                        {% if item.makale.dosya_turu == 'image' %}
+                            <img src="{{ item.makale.dosya_url }}" class="img-fluid" alt="Görsel">
+                        {% elif item.makale.dosya_turu == 'video' %}
+                            <video controls style="width: 100%;">
+                                <source src="{{ item.makale.dosya_url }}" type="video/mp4">
+                                Tarayıcınız video oynatmayı desteklemiyor.
+                            </video>
+                        {% else %}
+                            <div class="p-4 bg-light text-center">
+                                📎 <strong>Ekli Doküman:</strong> 
+                                <a href="{{ item.makale.dosya_url }}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">Dokümanı İncele / İndir (PDF)</a>
+                            </div>
                         {% endif %}
-                        <a href="{{ item.makale['link'] }}" target="_blank" rel="noopener noreferrer">Makaleyi aç</a>
+                    </div>
+                {% endif %}
 
-                        {% if is_admin %}
-                        <form action="{{ url_for('makale_sil', makale_id=item.makale['id']) }}" method="POST" style="margin-top: 10px;">
-                            <button type="submit" class="sil-butonu">Makaleyi Sil</button>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h3 class="card-title h4 text-dark mb-0">{{ item.makale.baslik }}</h3>
+                        <small class="text-muted">{{ item.makale.tarih }}</small>
+                    </div>
+                    <p class="card-text text-secondary" style="white-space: pre-line;">{{ item.makale.icerik }}</p>
+
+                    {% if session.get('admin') %}
+                        <form action="/makale-sil/{{ item.makale.id }}" method="POST" class="d-inline" onsubmit="return confirm('Silmek istediğinize emin misiniz?');">
+                            <button class="btn btn-danger btn-sm">Sil</button>
                         </form>
-                        {% endif %}
+                    {% endif %}
 
-                        <!-- YORUM ALANI -->
-                        <div class="yorumlar-bolumu" style="margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
-                            <h4>Yorumlar / Notlar</h4>
-                            
-                            <!-- Var olan yorumları listele -->
-                            {% if item.yorumlar %}
-                                <div class="yorum-listesi" style="margin-top: 10px;">
-                                    {% for y in item.yorumlar %}
-                                        <div style="background-color: #f8fafc; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; font-size: 14px;">
-                                            <strong>{{ y["isim"] }}:</strong> {{ y["yorum"] }}
-                                            {% if is_admin %}
-                                                <form action="{{ url_for('yorum_sil', yorum_id=y['id']) }}" method="POST" style="display: inline; float: right;">
-                                                    <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer; font-size: 12px; width: auto; padding: 0;">[Sil]</button>
-                                                </form>
-                                            {% endif %}
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                <p style="font-size: 13px; color: #94a3b8; margin: 5px 0;">Henüz yorum yapılmadı.</p>
-                            {% endif %}
+                    <hr class="my-4">
 
-                            <!-- Yorum Ekleme Formu -->
-                            <form action="{{ url_for('yorum_ekle', makale_id=item.makale['id']) }}" method="POST" style="margin-top: 10px;">
-                                <input type="text" name="isim" placeholder="Adınız" required style="margin-bottom: 6px; padding: 8px; font-size: 14px;">
-                                <input type="text" name="yorum" placeholder="Yorumunuz veya notunuz..." required style="margin-bottom: 6px; padding: 8px; font-size: 14px;">
-                                <button type="submit" style="padding: 6px 12px; font-size: 14px; background-color: #475569;">Yorum Yap</button>
-                            </form>
+                    <h6 class="fw-bold mb-3">Yorumlar ({{ item.yorumlar|length }})</h6>
+                    {% for y in item.yorumlar %}
+                        <div class="bg-light p-2 rounded mb-2">
+                            <strong class="text-primary">{{ y.yazar }}:</strong>
+                            <span>{{ y.yorum }}</span>
+                            <br><small class="text-muted" style="font-size: 0.75rem;">{{ y.tarih }}</small>
                         </div>
-                    </article>
-                {% endfor %}
+                    {% else %}
+                        <p class="text-muted small">Henüz yorum yapılmamış.</p>
+                    {% endfor %}
+
+                    <form action="/yorum-ekle/{{ item.makale.id }}" method="POST" class="mt-3">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <input type="text" name="yazar" class="form-control form-control-sm" placeholder="Adınız" required>
+                            </div>
+                            <div class="col-md-6">
+                                <input type="text" name="yorum" class="form-control form-control-sm" placeholder="Yorumunuz..." required>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-primary btn-sm w-100">Gönder</button>
+                            </div>
+                        </div>
+                    </form>
+
+                </div>
+            </div>
             {% else %}
-                <p>Henüz makale eklenmedi.</p>
-            {% endif %}
-        </section>
-    </main>
+                <div class="alert alert-info text-center">Henüz içerik eklenmemiş.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
 
-    <footer class="alt-kisim">
-        <p>Bilimsel okuma arşivim</p>
-    </footer>
+<div class="modal fade" id="loginModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Yönetici Girişi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/login" method="POST">
+                <div class="modal-body">
+                    <input type="password" name="password" class="form-control" placeholder="Şifre" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Giriş Yap</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/bootstrap.bundle.min.js"></script>
 </body>
 </html>
