@@ -1,6 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+import os
+from dotenv import load_dotenv
+import cloudinary
+import cloudinary.uploader
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 import sqlite3
 
+# .env dosyasındaki ortam değişkenlerini yükle
+load_dotenv()
 app = Flask(__name__)
 app.secret_key = "super_gizli_yonetici_anahtari"
 YONETICI_SIFRESI = "123456"
@@ -11,15 +17,15 @@ def veritabani_hazirla():
     baglanti = sqlite3.connect(VERITABANI)
 
     # Makaleler Tablosu
-    baglanti.execute("""
-        CREATE TABLE IF NOT EXISTS makaleler (
+    baglanti.execute("""CREATE TABLE IF NOT EXISTS makaleler (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             baslik TEXT NOT NULL,
-            link TEXT NOT NULL,
-            aciklama TEXT,
+            icerik TEXT NOT NULL,
+            dosya_url TEXT,
+            dosya_turu TEXT,
             tarih TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+ """)
 
     # Yorumlar Tablosu
     baglanti.execute("""
