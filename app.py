@@ -20,17 +20,20 @@ VERITABANI = "bilim.db"
 
 def veritabani_hazirla():
     baglanti = sqlite3.connect(VERITABANI)
-    baglanti.execute("""
+    cursor = baglanti.cursor()
+    
+    # Ana tabloları oluştur
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS makaleler (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             baslik TEXT NOT NULL,
-            icerik TEXT NOT NULL,
+            icerik TEXT,
             dosya_url TEXT,
             dosya_turu TEXT,
             tarih TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    baglanti.execute("""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS yorumlar (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             makale_id INTEGER NOT NULL,
@@ -40,6 +43,18 @@ def veritabani_hazirla():
             FOREIGN KEY (makale_id) REFERENCES makaleler (id) ON DELETE CASCADE
         )
     """)
+    
+    # Eksik sütunlar varsa eski veritabanına otomatik ekle
+    cursor.execute("PRAGMA table_info(makaleler)")
+    sutunlar = [row[1] for row in cursor.fetchall()]
+    
+    if 'icerik' not in sutunlar:
+        cursor.execute("ALTER TABLE makaleler ADD COLUMN icerik TEXT")
+    if 'dosya_url' not in sutunlar:
+        cursor.execute("ALTER TABLE makaleler ADD COLUMN dosya_url TEXT")
+    if 'dosya_turu' not in sutunlar:
+        cursor.execute("ALTER TABLE makaleler ADD COLUMN dosya_turu TEXT")
+        
     baglanti.commit()
     baglanti.close()
 
