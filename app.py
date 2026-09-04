@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
 from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask_mail import Mail, Message
 import sqlite3
 
 # .env dosyasındaki ortam değişkenlerini yükle
