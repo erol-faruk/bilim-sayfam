@@ -18,10 +18,11 @@ app.secret_key = "super_gizli_yonetici_anahtari"
 YONETICI_SIFRESI = "123456"
 VERITABANI = "bilim_v2.db"
 
+# Flask-Mail Konfigürasyonu (Render için Port 587 + TLS)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 465
-app.config['MAIL_USE_TLS'] = False
-app.config['MAIL_USE_SSL'] = True
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME')
@@ -177,8 +178,8 @@ def makale_ekle():
 
         msg = Message(
             subject=f"Yeni Yayın: {baslik}",
-            recipients=[admin_mail], # Doğrudan sana gönderir
-            bcc=alici_listesi if alici_listesi else None, # Aboneler varsa gizli alıcı ekler
+            recipients=[admin_mail],
+            bcc=alici_listesi if alici_listesi else None,
             body=f"Merhaba!\n\nSitemizde yeni bir bilimsel içerik paylaşıldı:\n\nBaşlık: {baslik}\n\nİçeriği incelemek için tıklayın:\nhttps://bilim-sayfam-1.onrender.com"
         )
         
