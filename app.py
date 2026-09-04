@@ -1,10 +1,10 @@
 import os
+import sqlite3
 from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_mail import Mail, Message
-import sqlite3
 
 # .env dosyasındaki ortam değişkenlerini yükle
 load_dotenv()
@@ -19,10 +19,20 @@ app.secret_key = "super_gizli_yonetici_anahtari"
 YONETICI_SIFRESI = "123456"
 VERITABANI = "bilim_v2.db"
 
+# Flask-Mail Konfigürasyonu (EKSİK OLAN KISIM EKLENDİ)
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME')
+
+mail = Mail(app)
+
 def veritabani_hazirla():
     baglanti = sqlite3.connect(VERITABANI)
     cursor = baglanti.cursor()
-    
+
     # Aboneler tablosu
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS aboneler (
@@ -31,7 +41,7 @@ def veritabani_hazirla():
             tarih TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
+
     # Makaleler tablosu
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS makaleler (
@@ -43,7 +53,7 @@ def veritabani_hazirla():
             tarih TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
+
     # Yorumlar tablosu
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS yorumlar (
@@ -55,7 +65,7 @@ def veritabani_hazirla():
             FOREIGN KEY (makale_id) REFERENCES makaleler (id) ON DELETE CASCADE
         )
     """)
-    
+
     baglanti.commit()
     baglanti.close()
 
@@ -66,9 +76,9 @@ def index():
     baglanti = sqlite3.connect(VERITABANI)
     baglanti.row_factory = sqlite3.Row
     cursor = baglanti.cursor()
-    
+
     makaleler = cursor.execute("SELECT * FROM makaleler ORDER BY id DESC").fetchall()
-    
+
     makale_listesi = []
     for m in makaleler:
         yorumlar = cursor.execute("SELECT * FROM yorumlar WHERE makale_id = ? ORDER BY id DESC", (m['id'],)).fetchall()
@@ -76,7 +86,7 @@ def index():
             'makale': m,
             'yorumlar': yorumlar
         })
-        
+
     baglanti.close()
     return render_template('index.html', makaleler=makale_listesi)
 
@@ -91,7 +101,7 @@ def login():
         else:
             flash('Hatalı şifre!', 'danger')
             return redirect(url_for('login'))
-            
+
     return '''
     <!DOCTYPE html>
     <html>
@@ -124,14 +134,14 @@ def logout():
 def makale_ekle():
     if not session.get('admin'):
         return redirect(url_for('index'))
-        
+
     baslik = request.form.get('baslik')
     icerik = request.form.get('icerik')
     dosya = request.files.get('dosya')
-    
+
     dosya_url = None
     dosya_turu = None
-    
+
     if dosya and dosya.filename != '':
         try:
             yukleme_sonucu = cloudinary.uploader.upload(dosya, resource_type="auto")
@@ -140,13 +150,14 @@ def makale_ekle():
         except Exception as e:
             flash(f'Dosya yükleme hatası: {str(e)}', 'danger')
             return redirect(url_for('index'))
-            
+
     baglanti = sqlite3.connect(VERITABANI)
     baglanti.execute("INSERT INTO makaleler (baslik, icerik, dosya_url, dosya_turu) VALUES (?, ?, ?, ?)",
                      (baslik, icerik, dosya_url, dosya_turu))
     baglanti.commit()
     baglanti.close()
-    # Veritabanına makale eklendikten sonra çalışacak mail bloğu:
+
+    # Otomatik Mail Gönderim Bloğu (BCC Yapısı Optimize Edildi)
     try:
         baglanti_mail = sqlite3.connect(VERITABANI)
         cursor = baglanti_mail.cursor()
@@ -158,14 +169,15 @@ def makale_ekle():
             alici_listesi = [abone[0] for abone in aboneler]
             msg = Message(
                 subject=f"Yeni Yayın: {baslik}",
-                recipients=alici_listesi,
+                recipients=[os.environ.get('MAIL_USERNAME')],
+                bcc=alici_listesi,
                 body=f"Merhaba!\n\nSitemizde yeni bir bilimsel içerik veya medya paylaşıldı:\n\nBaşlık: {baslik}\n\nİçeriği incelemek için sitemizi ziyaret edin:\nhttps://bilim-sayfam-1.onrender.com"
             )
             mail.send(msg)
+            print("Mail basariyla gonderildi!")
     except Exception as e:
         print(f"Mail gönderme hatası: {e}")
 
-    
     flash('Makale ve medya başarıyla eklendi!', 'success')
     return redirect(url_for('index'))
 
@@ -173,12 +185,12 @@ def makale_ekle():
 def makale_sil(id):
     if not session.get('admin'):
         return redirect(url_for('index'))
-        
+
     baglanti = sqlite3.connect(VERITABANI)
     baglanti.execute("DELETE FROM makaleler WHERE id = ?", (id,))
     baglanti.commit()
     baglanti.close()
-    
+
     flash('Makale silindi.', 'warning')
     return redirect(url_for('index'))
 
@@ -186,13 +198,13 @@ def makale_sil(id):
 def yorum_ekle(makale_id):
     yazar = request.form.get('yazar')
     yorum = request.form.get('yorum')
-    
+
     baglanti = sqlite3.connect(VERITABANI)
     baglanti.execute("INSERT INTO yorumlar (makale_id, yazar, yorum) VALUES (?, ?, ?)",
                      (makale_id, yazar, yorum))
     baglanti.commit()
     baglanti.close()
-    
+
     return redirect(url_for('index'))
 
 @app.route('/abone-ol', methods=['POST'])
