@@ -22,7 +22,16 @@ def veritabani_hazirla():
     baglanti = sqlite3.connect(VERITABANI)
     cursor = baglanti.cursor()
     
-    # Ana tabloları oluştur
+    # Aboneler tablosu
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS aboneler (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            eposta TEXT UNIQUE NOT NULL,
+            tarih TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Makaleler tablosu
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS makaleler (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,6 +42,8 @@ def veritabani_hazirla():
             tarih TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    
+    # Yorumlar tablosu
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS yorumlar (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,17 +55,6 @@ def veritabani_hazirla():
         )
     """)
     
-    # Eksik sütunlar varsa eski veritabanına otomatik ekle
-    cursor.execute("PRAGMA table_info(makaleler)")
-    sutunlar = [row[1] for row in cursor.fetchall()]
-    
-    if 'icerik' not in sutunlar:
-        cursor.execute("ALTER TABLE makaleler ADD COLUMN icerik TEXT")
-    if 'dosya_url' not in sutunlar:
-        cursor.execute("ALTER TABLE makaleler ADD COLUMN dosya_url TEXT")
-    if 'dosya_turu' not in sutunlar:
-        cursor.execute("ALTER TABLE makaleler ADD COLUMN dosya_turu TEXT")
-        
     baglanti.commit()
     baglanti.close()
 
@@ -145,6 +145,25 @@ def makale_ekle():
                      (baslik, icerik, dosya_url, dosya_turu))
     baglanti.commit()
     baglanti.close()
+    # Veritabanına makale eklendikten sonra çalışacak mail bloğu:
+    try:
+        baglanti_mail = sqlite3.connect(VERITABANI)
+        cursor = baglanti_mail.cursor()
+        cursor.execute("SELECT eposta FROM aboneler")
+        aboneler = cursor.fetchall()
+        baglanti_mail.close()
+
+        if aboneler:
+            alici_listesi = [abone[0] for abone in aboneler]
+            msg = Message(
+                subject=f"Yeni Yayın: {baslik}",
+                recipients=alici_listesi,
+                body=f"Merhaba!\n\nSitemizde yeni bir bilimsel içerik veya medya paylaşıldı:\n\nBaşlık: {baslik}\n\nİçeriği incelemek için sitemizi ziyaret edin:\nhttps://bilim-sayfam-1.onrender.com"
+            )
+            mail.send(msg)
+    except Exception as e:
+        print(f"Mail gönderme hatası: {e}")
+
     
     flash('Makale ve medya başarıyla eklendi!', 'success')
     return redirect(url_for('index'))
@@ -173,6 +192,22 @@ def yorum_ekle(makale_id):
     baglanti.commit()
     baglanti.close()
     
+    return redirect(url_for('index'))
+
+@app.route('/abone-ol', methods=['POST'])
+def abone_ol():
+    eposta = request.form.get('eposta')
+    if eposta:
+        try:
+            baglanti = sqlite3.connect(VERITABANI)
+            baglanti.execute("INSERT INTO aboneler (eposta) VALUES (?)", (eposta,))
+            baglanti.commit()
+            baglanti.close()
+            flash('Bültene başarıyla abone oldunuz! Teşekkürler.', 'success')
+        except sqlite3.IntegrityError:
+            flash('Bu e-posta adresi zaten kayıtlı.', 'info')
+        except Exception as e:
+            flash('Bir hata oluştu, lütfen tekrar deneyin.', 'danger')
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
